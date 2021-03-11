@@ -1,11 +1,12 @@
-from PyQt5.QtWidgets import QWidget, QSizePolicy, QPushButton
+from PyQt5.QtWidgets import QWidget, QSizePolicy, QPushButton, QFileDialog
 from sklearn.datasets import fetch_olivetti_faces
 import numpy as np
 import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from PIL import Image
 
-from algorithm import template_matching
+from algorithm import find_best_shape
 
 matplotlib.use('Qt5Agg')
 
@@ -29,7 +30,8 @@ class PlotCanvas(FigureCanvas):
         self.draw()
 
     def plot_with_mask(self, image, mask, title=''):
-        bestx, besty, bestv, hx, hy = template_matching(image, mask)
+        result, image = find_best_shape(image, mask)
+        bestx, besty, bestv, hx, hy = result
         rez = np.ones(image.shape)
         rez[bestx:bestx + hx, besty:besty + hy] = 0
         self.ax.imshow(image, cmap='gray')
@@ -45,23 +47,40 @@ class ImageMaskWindow(QWidget):
         self.current_pic = None
         self.current_mask = None
 
+        data_images = fetch_olivetti_faces()
+        self.images = data_images['images']
+
         self.image = PlotCanvas(self, width=5, height=4)
         self.image.move(0, 0)
 
         self.mask = PlotCanvas(self, width=5, height=4)
         self.mask.move(500, 0)
 
+        self.show_image_button = QPushButton('Показать\n текущее изображение', self)
+        self.show_image_button.setGeometry(250, 425, 130, 50)
+        self.show_image_button.clicked.connect(self.change_image)
+
         self.apply_mask_button = QPushButton('Применить\n маску', self)
         self.apply_mask_button.setGeometry(450, 425, 100, 50)
 
         def apply_mask():
             if self.current_pic is not None and self.current_mask is not None:
-                self.image.plot_with_mask(self.current_pic, self.current_mask, 'Изображение с маской')
+                pic = Image.fromarray(np.uint8(self.current_pic * 255) , 'L')
+                self.image.plot_with_mask(pic, self.current_mask, 'Изображение с маской')
 
         self.apply_mask_button.clicked.connect(apply_mask)
 
-    def change_image(self, pic=None):
-        self.current_pic = pic
+        self.change_mask_button = QPushButton('Сменить\n маску', self)
+        self.change_mask_button.setGeometry(650, 425, 100, 50)
+
+        self.cut_mask_button = QPushButton('Использовать текущее\n изображение как маску', self)
+        self.cut_mask_button.setGeometry(770, 425, 150, 50)
+
+
+    def change_image(self, arg=None, pic=None):
+        if pic is not None:
+            self.current_pic = pic
+
         if self.current_pic is not None:
             self.image.plot(self.current_pic, 'Изображение')
 
@@ -77,19 +96,13 @@ class DatasetWindow(ImageMaskWindow):
         ImageMaskWindow.__init__(self, parent)
         self.setWindowTitle('Window with dastaset images')
 
-        data_images = fetch_olivetti_faces()
-        self.images = data_images['images']
-
         self.change_pic_button = QPushButton('Сменить\n изображение', self)
-        self.change_pic_button.setGeometry(200, 425, 100, 50)
+        self.change_pic_button.setGeometry(100, 425, 100, 50)
 
         def change_random_image():
-            self.change_image(self.images[np.random.randint(len(self.images))])
+            self.change_image(pic=self.images[np.random.randint(len(self.images))])
 
         self.change_pic_button.clicked.connect(change_random_image)
-
-        self.change_mask_button = QPushButton('Сменить\n маску', self)
-        self.change_mask_button.setGeometry(700, 425, 100, 50)
 
         def change_random_mask():
             self.change_mask(self.images[np.random.randint(len(self.images))][10:55, 5:55])
@@ -97,9 +110,27 @@ class DatasetWindow(ImageMaskWindow):
         self.change_mask_button.clicked.connect(change_random_mask)
 
 
+
 class DownloadWindow(ImageMaskWindow):
     def __init__(self, parent=None):
         ImageMaskWindow.__init__(self, parent)
+
+        self.download_button = QPushButton('Загрузить\n изображение', self)
+        self.download_button.setGeometry(100, 425, 100, 50)
+
+        def download_picture():
+            filename = QFileDialog.getOpenFileName(self, filter = "Files (*.jpg *.png *.jpeg)")[0]
+            print(filename)
+            image = Image.open(filename)
+            img = np.asarray(image.convert('LA'))[:, :, 0]
+            self.change_image(img/np.max(img))
+
+        self.download_button.clicked.connect(download_picture)
+
+        def change_random_mask():
+            self.change_mask(self.images[np.random.randint(len(self.images))][10:55, 5:55])
+
+        self.change_mask_button.clicked.connect(change_random_mask)
 
 
 class Main(QWidget):
@@ -107,7 +138,7 @@ class Main(QWidget):
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
         self.setWindowTitle('Template Matching')
-        self.resize(500, 250)
+        self.resize(450, 250)
 
         self.dataset_window = DatasetWindow()
 
