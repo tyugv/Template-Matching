@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QSizePolicy, QPushButton, QFileDialog
+from PyQt5.QtWidgets import QWidget, QSizePolicy, QPushButton, QFileDialog, QLabel, QSpinBox
 from sklearn.datasets import fetch_olivetti_faces
 import numpy as np
 import matplotlib
@@ -43,7 +43,7 @@ class PlotCanvas(FigureCanvas):
 class ImageMaskWindow(QWidget):
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
-        self.resize(1000, 500)
+        self.resize(1200, 500)
         self.current_pic = None
         self.current_mask = None
 
@@ -66,16 +66,49 @@ class ImageMaskWindow(QWidget):
         def apply_mask():
             if self.current_pic is not None and self.current_mask is not None:
                 pic = Image.fromarray(np.uint8(self.current_pic * 255) , 'L')
+                print(pic.size)
                 self.image.plot_with_mask(pic, self.current_mask, 'Изображение с маской')
 
         self.apply_mask_button.clicked.connect(apply_mask)
 
         self.change_mask_button = QPushButton('Сменить\n маску', self)
-        self.change_mask_button.setGeometry(650, 425, 100, 50)
+        self.change_mask_button.setGeometry(720, 425, 100, 50)
+
+        self.label_use_as_mask = QLabel(self)
+        self.label_use_as_mask.setText("Укажите координаты \nизображения для маски")
+        self.label_use_as_mask.setGeometry(1020, 100, 150, 25)
+
+        self.label_x = QLabel(self)
+        self.label_x.setText('X:')
+        self.label_x.setStyleSheet("font: 13pt;")
+        self.label_x.setGeometry(1020, 150, 150, 25)
+
+        self.label_y = QLabel(self)
+        self.label_y.setText('Y:')
+        self.label_y.setStyleSheet("font: 13pt;")
+        self.label_y.setGeometry(1020, 180, 150, 25)
+
+        self.xlabels = []
+        self.ylabels = []
+        for i in range(2):
+            self.xlabels.append(QSpinBox(self))
+            self.xlabels[i].move(1050 + 60*i, 150)
+            self.xlabels[i].setRange(0, 500)
+
+            self.ylabels.append(QSpinBox(self))
+            self.ylabels[i].move(1050 + 60*i, 180)
+            self.ylabels[i].setRange(0, 500)
 
         self.cut_mask_button = QPushButton('Использовать текущее\n изображение как маску', self)
-        self.cut_mask_button.setGeometry(770, 425, 150, 50)
+        self.cut_mask_button.setGeometry(1020, 230, 150, 50)
 
+        def cut_mask_from_image():
+            if self.current_pic is not None:
+                image = self.current_pic[self.xlabels[0].value() : self.xlabels[1].value(),\
+                 self.ylabels[0].value() : self.ylabels[1].value()]
+                self.change_mask(image)
+
+        self.cut_mask_button.clicked.connect(cut_mask_from_image)
 
     def change_image(self, arg=None, pic=None):
         if pic is not None:
@@ -85,7 +118,9 @@ class ImageMaskWindow(QWidget):
             self.image.plot(self.current_pic, 'Изображение')
 
     def change_mask(self, mask=None):
-        self.current_mask = mask
+        if mask is not None:
+            self.current_mask = mask
+
         if self.current_mask is not None:
             self.mask.plot(self.current_mask, 'Маска')
 
@@ -122,8 +157,15 @@ class DownloadWindow(ImageMaskWindow):
             filename = QFileDialog.getOpenFileName(self, filter = "Files (*.jpg *.png *.jpeg)")[0]
             print(filename)
             image = Image.open(filename)
+
+            if np.max(image.size) > 500:
+                scale = 500 / np.max(image.size)
+                row = int(image.size[0] * scale)
+                col = int(image.size[1] * scale)
+                image = image.resize((row, col))
+
             img = np.asarray(image.convert('LA'))[:, :, 0]
-            self.change_image(img/np.max(img))
+            self.change_image(pic = img/np.max(img))
 
         self.download_button.clicked.connect(download_picture)
 
