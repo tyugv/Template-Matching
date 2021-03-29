@@ -78,13 +78,17 @@ def find_face_symmetries(pic, mask):
 
   image = np.asarray(pic)
   rez = np.ones(image.shape)
-  y = find_ssymetry(image)
-  rez[:, y:y+1] = 20
 
   eyes = eye_cascade.detectMultiScale(image)
   for (ex,ey,ew,eh) in eyes:
       y = find_ssymetry(image[ey:ey+eh, ex:ex+ew])
       rez[ey:ey+eh, ex+y:ex+y+1] = 20
+      
+  faces = face_cascade.detectMultiScale(image)
+  for (ex,ey,ew,eh) in faces:
+      y = find_ssymetry(image[ey:ey+eh, ex:ex+ew])
+      rez[ey:ey+eh, ex+y:ex+y+1] = 20  
+
   return rez, image
 
 
